@@ -1,0 +1,36 @@
+# Define the base installation directory for the Tor browsers
+$installDir = "C:\tor-browsers"
+
+# Get a list of all the local Windows user accounts
+$userAccounts = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True'"
+
+# Loop through each user account and install a Tor browser instance for that user
+foreach ($user in $userAccounts) {
+    # Define the installation directory for this user's Tor browser instance
+    $userDir = Join-Path -Path $installDir -ChildPath "tor-browser-$($user.Name)"
+
+    # If the directory doesn't already exist, create it
+    if (-not (Test-Path $userDir)) {
+        New-Item -ItemType Directory -Path $userDir | Out-Null
+    }
+
+    # Generate a random port number to use for this user's Tor browser instance
+    $port = Get-Random -Minimum 49152 -Maximum 65535
+
+    # Download the latest version of the Tor browser bundle
+    Invoke-WebRequest -Uri "https://dist.torproject.org/torbrowser/12.0.3/torbrowser-install-win64-12.0.3_ALL.exe" -OutFile "$userDir\torbrowser-install.exe"
+
+    # Install the Tor browser bundle to this user's directory using the specified port
+    Start-Process -FilePath "$userDir\torbrowser-install.exe" -ArgumentList "/S /D=$userDir /INSTALLTORRC=0 /INSTALLDESKTOPSHORTCUT=0 /STARTMENU_SHORTCUT=0 /SERVICENAME=Tor$port /TORSOCKSPORT=$port" -Wait | Out-Null
+
+    # Delete the installer file to free up disk space
+    Remove-Item -Path "$userDir\torbrowser-install.exe" -Force | Out-Null
+}
+
+# Add read and write permissions to the "tor-browsers" folder for all authenticated users
+$Acl = Get-Acl $installDir
+$Ar = New-Object System.Security.AccessControl.FileSystemAccessRule("Authenticated Users","ReadAndExecute","Allow")
+$Acl.SetAccessRule($Ar)
+$Aw = New-Object System.Security.AccessControl.FileSystemAccessRule("Authenticated Users","Write","Allow")
+$Acl.SetAccessRule($Aw)
+Set-Acl $installDir $Acl
